@@ -1,175 +1,229 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-class SchedulerApp:
+class Escalonador:
+    def __init__(self):
+        self.processos = []
+
+    def adicionar_processo(self, pid, chegada, execucao):
+        self.processos.append((pid, int(chegada), int(execucao)))
+
+    def fcfs(self, ttc):
+        self.processos.sort(key=lambda p: p[1])  # ordenar por tempo de chegada
+        tempo = 0
+        resultados = []
+        espera_total = 0
+        for pid, chegada, execucao in self.processos:
+            if tempo < chegada:
+                tempo = chegada
+            inicio = tempo
+            fim = tempo + execucao
+            espera = tempo - chegada
+            tempo = fim + ttc
+            espera_total += espera
+            resultados.append((pid, inicio, fim, espera))
+        return resultados, espera_total / len(self.processos)
+
+    def sjf_np(self, ttc):
+        processos = self.processos[:]
+        processos.sort(key=lambda x: (x[1], x[2]))
+        tempo = 0
+        prontos = []
+        resultados = []
+        espera_total = 0
+        while processos or prontos:
+            while processos and processos[0][1] <= tempo:
+                prontos.append(processos.pop(0))
+            if prontos:
+                prontos.sort(key=lambda x: x[2])
+                pid, chegada, execucao = prontos.pop(0)
+                inicio = tempo
+                fim = tempo + execucao
+                espera = tempo - chegada
+                tempo = fim + ttc
+                espera_total += espera
+                resultados.append((pid, inicio, fim, espera))
+            else:
+                tempo += 1
+        return resultados, espera_total / len(self.processos)
+
+    def round_robin(self, quantum, ttc):
+        fila = []
+        processos = sorted(self.processos, key=lambda x: x[1])
+        tempo = 0
+        index = 0
+        restantes = {p[0]: p[2] for p in processos}
+        chegada = {p[0]: p[1] for p in processos}
+        resultados = []
+        completados = {}
+        fila = [p[0] for p in processos if p[1] == 0]
+
+        while fila or index < len(processos):
+            if not fila and index < len(processos):
+                if processos[index][1] > tempo:
+                    tempo = processos[index][1]
+                fila.append(processos[index][0])
+                index += 1
+
+            pid = fila.pop(0)
+            if pid not in completados:
+                inicio = tempo
+            else:
+                inicio = tempo
+            exec_time = min(quantum, restantes[pid])
+            tempo += exec_time
+            restantes[pid] -= exec_time
+
+            for i in range(index, len(processos)):
+                if processos[i][1] <= tempo:
+                    fila.append(processos[i][0])
+                    index += 1
+
+            if restantes[pid] > 0:
+                fila.append(pid)
+                tempo += ttc
+            else:
+                fim = tempo
+                espera = fim - chegada[pid] - sum([p[2] for p in self.processos if p[0] == pid])
+                completados[pid] = (pid, inicio, fim, espera)
+                resultados.append(completados[pid])
+        media_espera = sum(p[3] for p in resultados) / len(resultados)
+        return resultados, media_espera
+
+class IntroDialog(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Introdução")
+        self.geometry("600x400")
+        self.configure(bg="#f0f0f0")
+        self.resizable(False, False)
+
+        self.content = tk.Frame(self, bg="#f0f0f0", padx=20, pady=20)
+        self.content.pack(expand=True, fill="both")
+
+        tk.Label(self.content, text="TRABALHO 1 DE SISTEMAS OPERACIONAIS", font=("Helvetica", 16, "bold"), bg="#f0f0f0").pack(pady=10)
+        tk.Label(self.content, text="Autores: Mateus Medeiros Schneider e Miguel Bohrz Vogel", font=("Helvetica", 12), bg="#f0f0f0").pack()
+        tk.Label(self.content, text="Orientador: Prof. Dr. Luis Claudio Gubert", font=("Helvetica", 12), bg="#f0f0f0").pack()
+        tk.Label(self.content, text="\nEste programa simula algoritmos de escalonamento de processos.", bg="#f0f0f0", justify="center").pack(pady=10)
+
+        termos = (
+            "🔹 PID: Identificador do processo.\n"
+            "🔹 Tempo de Execução: Tempo total necessário para o processo.\n"
+            "🔹 Quantum: Tempo máximo de uso do processador por vez.\n"
+            "🔹 Troca de Contexto: Tempo para alternar entre processos."
+        )
+        tk.Label(self.content, text=termos, bg="#f0f0f0", justify="left", anchor="w").pack()
+
+        tk.Button(self.content, text="Fechar e Iniciar", command=self.destroy).pack(pady=20)
+        self.grab_set()
+        self.wait_window(self)
+
+
+class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Simulador de Escalonador de Processos")
-        self.root.geometry("750x600")
-        self.root.resizable(False, False)
+        self.root.title("Simulador de Escalonamento")
+        self.scheduler = Escalonador()
 
-        self.process_list = []
+        self.setup_ui()
 
-        self.setup_menu()
-        self.setup_input_frame()
-        self.setup_process_entry_frame()
-        self.setup_process_table()
-        self.setup_control_buttons()
-        self.setup_output_display()
-
-    def setup_menu(self):
+            # Menu Ajuda
         menubar = tk.Menu(self.root)
         ajuda_menu = tk.Menu(menubar, tearoff=0)
-        ajuda_menu.add_command(label="Políticas de Escalonamento", command=self.show_policies)
-        ajuda_menu.add_command(label="Conceitos Gerais", command=self.show_concepts)
+        ajuda_menu.add_command(label="Informações do Programa", command=self.exibir_ajuda)
         menubar.add_cascade(label="Ajuda", menu=ajuda_menu)
         self.root.config(menu=menubar)
 
-    def show_policies(self):
-        texto = (
-            "🔷 FCFS (First Come, First Serve)\n"
-            "- Executa os processos por ordem de chegada.\n"
-            "- Simples, mas pode causar longas esperas se o primeiro for muito demorado.\n\n"
-            "🔷 SJF Não-preemptivo (Shortest Job First)\n"
-            "- Escolhe o processo com menor tempo de execução entre os disponíveis.\n"
-            "- Uma vez iniciado, vai até o fim sem interrupções.\n\n"
-            "🔷 SJF Preemptivo (Shortest Remaining Time First)\n"
-            "- Como o anterior, mas pode interromper o processo atual se um menor chegar.\n"
-            "- Reduz bastante o tempo médio de espera.\n\n"
-            "🔷 Round Robin\n"
-            "- Cada processo executa por um intervalo fixo (quantum).\n"
-            "- Ideal para multitarefa. Após o quantum, o processo volta ao fim da fila."
-        )
-        messagebox.showinfo("Ajuda - Políticas de Escalonamento", texto)
 
-    def show_concepts(self):
-        texto = (
-            "🔹 PID: identificador único do processo.\n"
-            "🔹 Tempo de Chegada: instante em que o processo entra na fila de pronto.\n"
-            "🔹 Tempo de Execução: quanto tempo o processo precisa para rodar (burst).\n"
-            "🔹 Quantum: fatia de tempo fixa para cada processo no Round Robin.\n"
-            "🔹 TTC (Tempo de Troca de Contexto): tempo gasto pelo SO ao trocar de processo ativo.\n"
-            "- Inclui salvar/recuperar estados dos processos."
-        )
-        messagebox.showinfo("Ajuda - Conceitos Gerais", texto)
+    def setup_ui(self):
+        tk.Label(self.root, text="PID").grid(row=0, column=0)
+        tk.Label(self.root, text="Chegada").grid(row=0, column=1)
+        tk.Label(self.root, text="Execução").grid(row=0, column=2)
 
-    def setup_input_frame(self):
-        frame = tk.LabelFrame(self.root, text="Parâmetros do Escalonador", padx=10, pady=10)
-        frame.pack(fill="x", padx=10, pady=5)
+        self.pid = tk.Entry(self.root)
+        self.chegada = tk.Entry(self.root)
+        self.execucao = tk.Entry(self.root)
+        self.pid.grid(row=1, column=0)
+        self.chegada.grid(row=1, column=1)
+        self.execucao.grid(row=1, column=2)
 
-        tk.Label(frame, text="Política:").grid(row=0, column=0, sticky="e")
-        self.policy_var = tk.StringVar()
-        self.policy_combo = ttk.Combobox(frame, textvariable=self.policy_var, state="readonly",
-                                         values=["FCFS", "SJF Não-preemptivo", "SJF Preemptivo", "Round Robin"])
-        self.policy_combo.grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(self.root, text="Adicionar Processo", command=self.adicionar_processo).grid(row=1, column=3)
 
-        tk.Label(frame, text="Quantum:").grid(row=0, column=2, sticky="e")
-        self.quantum_entry = tk.Entry(frame, width=10)
-        self.quantum_entry.grid(row=0, column=3, padx=5)
+        self.policy = ttk.Combobox(self.root, values=["FCFS", "SJF", "Round Robin"])
+        self.policy.grid(row=2, column=0)
+        self.policy.set("FCFS")
 
-        tk.Label(frame, text="Tempo de Troca de Contexto:").grid(row=0, column=4, sticky="e")
-        self.context_switch_entry = tk.Entry(frame, width=10)
-        self.context_switch_entry.grid(row=0, column=5, padx=5)
+        tk.Label(self.root, text="Quantum").grid(row=2, column=1)
+        self.quantum = tk.Entry(self.root)
+        self.quantum.grid(row=2, column=2)
 
-    def setup_process_entry_frame(self):
-        frame = tk.LabelFrame(self.root, text="Adicionar Processo", padx=10, pady=10)
-        frame.pack(fill="x", padx=10, pady=5)
+        tk.Label(self.root, text="TTC").grid(row=2, column=3)
+        self.ttc = tk.Entry(self.root)
+        self.ttc.grid(row=2, column=4)
 
-        self.pid_entry = self.create_labeled_entry(frame, "PID", 0)
-        self.arrival_entry = self.create_labeled_entry(frame, "Chegada", 1)
-        self.burst_entry = self.create_labeled_entry(frame, "Execução", 2)
+        tk.Button(self.root, text="Simular", command=self.simular).grid(row=2, column=5)
 
-        self.add_button = tk.Button(frame, text="Adicionar", command=self.add_process, width=15)
-        self.add_button.grid(row=0, column=6, padx=10)
+        self.output = tk.Text(self.root, height=15, width=80)
+        self.output.grid(row=3, column=0, columnspan=6, pady=10)
 
-    def create_labeled_entry(self, parent, label, col):
-        tk.Label(parent, text=label).grid(row=0, column=col * 2)
-        entry = tk.Entry(parent, width=10)
-        entry.grid(row=0, column=col * 2 + 1, padx=5)
-        return entry
-
-    def setup_process_table(self):
-        frame = tk.LabelFrame(self.root, text="Processos Adicionados")
-        frame.pack(fill="both", padx=10, pady=5, expand=True)
-
-        columns = ("PID", "Chegada", "Execução")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", height=6)
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=100, anchor="center")
-        self.tree.pack(fill="both", expand=True)
-
-    def setup_control_buttons(self):
-        frame = tk.Frame(self.root)
-        frame.pack(pady=5)
-
-        self.simulate_button = tk.Button(frame, text="Simular Escalonamento", command=self.simulate, width=25)
-        self.simulate_button.pack(side="left", padx=10)
-
-        self.clear_button = tk.Button(frame, text="Limpar Tudo", command=self.clear_all, width=15)
-        self.clear_button.pack(side="left", padx=10)
-
-    def setup_output_display(self):
-        frame = tk.LabelFrame(self.root, text="Resultados da Simulação")
-        frame.pack(fill="both", padx=10, pady=5, expand=True)
-
-        self.output_display = tk.Text(frame, height=8, state="disabled", wrap="word")
-        self.output_display.pack(fill="both", expand=True)
-
-    def add_process(self):
-        pid = self.pid_entry.get()
-        arrival = self.arrival_entry.get()
-        burst = self.burst_entry.get()
-
-        if not pid or not arrival or not burst:
-            messagebox.showerror("Erro", "Preencha todos os campos do processo.")
-            return
-
+    def adicionar_processo(self):
         try:
-            arrival = int(arrival)
-            burst = int(burst)
-        except ValueError:
-            messagebox.showerror("Erro", "Chegada e Execução devem ser inteiros.")
-            return
+            pid = self.pid.get()
+            chegada = int(self.chegada.get())
+            execucao = int(self.execucao.get())
+            self.scheduler.adicionar_processo(pid, chegada, execucao)
+            self.output.insert(tk.END, f"Adicionado: PID={pid}, Chegada={chegada}, Execução={execucao}\n")
+            self.pid.delete(0, tk.END)
+            self.chegada.delete(0, tk.END)
+            self.execucao.delete(0, tk.END)
+        except:
+            messagebox.showerror("Erro", "Dados inválidos")
 
-        self.process_list.append((pid, arrival, burst))
-        self.tree.insert("", "end", values=(pid, arrival, burst))
+    def simular(self):
+        politica = self.policy.get()
+        try:
+            ttc = int(self.ttc.get()) if self.ttc.get() else 0
+            quantum = int(self.quantum.get()) if self.quantum.get() else 1
 
-        self.pid_entry.delete(0, tk.END)
-        self.arrival_entry.delete(0, tk.END)
-        self.burst_entry.delete(0, tk.END)
+            if politica == "FCFS":
+                res, media = self.scheduler.fcfs(ttc)
+            elif politica == "SJF":
+                res, media = self.scheduler.sjf_np(ttc)
+            elif politica == "Round Robin":
+                res, media = self.scheduler.round_robin(quantum, ttc)
+            else:
+                raise ValueError
 
-    def simulate(self):
-        policy = self.policy_var.get()
-        quantum = self.quantum_entry.get()
-        context_switch = self.context_switch_entry.get()
+            self.output.insert(tk.END, f"\nPolítica: {politica}\n")
+            for pid, ini, fim, esp in res:
+                self.output.insert(tk.END, f"{pid}: Início={ini}, Fim={fim}, Espera={esp}\n")
+            self.output.insert(tk.END, f"Tempo médio de espera: {media:.2f}\n\n")
 
-        if not policy:
-            messagebox.showerror("Erro", "Escolha uma política de escalonamento.")
-            return
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro na simulação: {e}")
 
-        self.output_display.config(state="normal")
-        self.output_display.delete("1.0", tk.END)
-        self.output_display.insert(tk.END, f"Política Selecionada: {policy}\n")
-        self.output_display.insert(tk.END, f"Quantum: {quantum} | Troca de Contexto: {context_switch}\n")
-        self.output_display.insert(tk.END, f"Processos: {len(self.process_list)}\n")
-
-        for i, proc in enumerate(self.process_list):
-            self.output_display.insert(tk.END, f"{i+1}) PID: {proc[0]}, Chegada: {proc[1]}, Execução: {proc[2]}\n")
-
-        self.output_display.insert(tk.END, "\n[Simulação ainda não implementada]\n")
-        self.output_display.config(state="disabled")
-
-    def clear_all(self):
-        self.process_list.clear()
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        self.output_display.config(state="normal")
-        self.output_display.delete("1.0", tk.END)
-        self.output_display.config(state="disabled")
+    def exibir_ajuda(self):
+        texto = (
+            "Simulador de Escalonamento de Processos\n\n"
+            "Este programa permite simular três algoritmos clássicos de escalonamento:\n"
+            "🔹 FCFS (First Come, First Served)\n"
+            "- Executa os processos na ordem de chegada.\n\n"
+            "🔹 SJF (Shortest Job First - Não Preemptivo)\n"
+            "- Executa o processo com menor tempo de execução disponível.\n\n"
+            "🔹 Round Robin\n"
+            "- Cada processo é executado por um quantum e volta para o final da fila, se necessário.\n\n"
+            "Outros parâmetros:\n"
+            "🔹 Quantum: tempo fixo para Round Robin.\n"
+            "🔹 TTC (Tempo de Troca de Contexto): tempo extra entre trocas de processo.\n\n"
+        )
+        messagebox.showinfo("Ajuda - Sobre o Programa", texto)
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = SchedulerApp(root)
+    root.withdraw()  # Esconde a janela principal temporariamente
+    IntroDialog(root)
+    root.deiconify()  # Mostra a janela principal depois de fechar a introdução
+    app = App(root)
     root.mainloop()
+
