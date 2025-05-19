@@ -167,32 +167,36 @@ class App:
         input_frame = tk.LabelFrame(self.root, text="Inserir Processos")
         input_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew", columnspan=6)
 
-        tk.Label(input_frame, text="PID").grid(row=0, column=0)
-        tk.Label(input_frame, text="Chegada").grid(row=0, column=1)
-        tk.Label(input_frame, text="Execução").grid(row=0, column=2)
-
+    # Linha 0: PID, Chegada, Execução centralizados com columnspan
         self.pid = tk.Entry(input_frame)
         self.chegada = tk.Entry(input_frame)
         self.execucao = tk.Entry(input_frame)
-        self.pid.grid(row=1, column=0)
-        self.chegada.grid(row=1, column=1)
-        self.execucao.grid(row=1, column=2)
 
-        tk.Button(input_frame, text="Adicionar Processo", command=self.adicionar_processo).grid(row=1, column=3)
+        tk.Label(input_frame, text="PID").grid(row=0, column=0, padx=5, pady=2)
+        tk.Label(input_frame, text="Chegada").grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(input_frame, text="Execução").grid(row=0, column=2, padx=5, pady=2)
 
-        self.policy = ttk.Combobox(input_frame, values=["FCFS", "SJF Não Preemptivo", "SJF Preemptivo", "Round Robin"])
-        self.policy.grid(row=2, column=0)
+        self.pid.grid(row=1, column=0, padx=5)
+        self.chegada.grid(row=1, column=1, padx=5)
+        self.execucao.grid(row=1, column=2, padx=5)
+
+        tk.Button(input_frame, text="Adicionar Processo", command=self.adicionar_processo).grid(row=1, column=3, padx=5)
+
+    # Linha 2: Algoritmo + Combobox, Quantum, TTC, Simular
+        tk.Label(input_frame, text="Algoritmo").grid(row=2, column=0, sticky="e")
+        self.policy = ttk.Combobox(input_frame, values=["FCFS", "SJF Não Preemptivo", "SJF Preemptivo", "Round Robin"], width=20)
+        self.policy.grid(row=2, column=1)
         self.policy.set("FCFS")
 
-        tk.Label(input_frame, text="Quantum").grid(row=2, column=1)
+        tk.Label(input_frame, text="Quantum").grid(row=2, column=2, padx=5)
         self.quantum = tk.Entry(input_frame)
-        self.quantum.grid(row=2, column=2)
+        self.quantum.grid(row=2, column=3, padx=5)
 
-        tk.Label(input_frame, text="TTC").grid(row=2, column=3)
+        tk.Label(input_frame, text="TTC").grid(row=2, column=4, padx=5)
         self.ttc = tk.Entry(input_frame)
-        self.ttc.grid(row=2, column=4)
+        self.ttc.grid(row=2, column=5, padx=5)
 
-        tk.Button(input_frame, text="Simular", command=self.simular).grid(row=2, column=5)
+        tk.Button(input_frame, text="Simular", command=self.simular).grid(row=2, column=6, padx=5)
 
         self.adicionados_frame = tk.LabelFrame(self.root, text="Processos Adicionados")
         self.adicionados_frame.grid(row=1, column=0, padx=10, pady=5, columnspan=6, sticky="ew")
@@ -255,14 +259,15 @@ class App:
     def exibir_ajuda(self):
         texto = (
             "Simulador de Escalonamento de Processos\n\n"
-            "Este programa permite simular quatro algoritmos clássicos de escalonamento:\n"
+            "Este programa permite simular quatro algoritmos de escalonamento:\n"
             "\U0001F539 FCFS: Ordem de chegada.\n"
             "\U0001F539 SJF Não Preemptivo: Executa o menor job entre os disponíveis.\n"
             "\U0001F539 SJF Preemptivo: Interrompe para executar o menor restante.\n"
             "\U0001F539 Round Robin: Executa por quantum e reentra na fila se necessário.\n\n"
             "Termos que são utilizados no simulador:\n\n"
             "\U0001F539 PID: Identificador do processo.\n"
-            "\U0001F539 Tempo de Execução: Tempo total necessário para o processo.\n"
+            "\U0001F539 Chegada: Tempo em que o processo fica pronto para ser executado pelo processador.\n"
+            "\U0001F539 Tempo de Execução: Tempo total em segundos necessário para o processo.\n"
             "\U0001F539 Quantum: Tempo máximo de uso do processador por vez.\n"
             "\U0001F539 Troca de Contexto: Tempo para alternar entre processos.\n\n"
             "Parâmetros:\n"
@@ -277,3 +282,4 @@ if __name__ == "__main__":
     root.mainloop()
     app = App(root)
     root.mainloop()
+
