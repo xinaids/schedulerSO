@@ -1,5 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class Escalonador:
     def __init__(self):
@@ -79,60 +81,54 @@ class Escalonador:
         return resultados, media_espera
 
     def round_robin(self, quantum, ttc):
-        fila = []
         processos = sorted(self.processos, key=lambda x: x[1])
         tempo = 0
+        fila = []
         index = 0
         restantes = {p[0]: p[2] for p in processos}
         chegada = {p[0]: p[1] for p in processos}
+        primeiros = {}
         resultados = []
         completados = {}
-        fila = [p[0] for p in processos if p[1] == 0]
-        while fila or index < len(processos):
-            if not fila and index < len(processos):
-                if processos[index][1] > tempo:
-                    tempo = processos[index][1]
-                fila.append(processos[index][0])
+
+        while len(completados) < len(processos):
+            while index < len(processos) and processos[index][1] <= tempo:
+                pid = processos[index][0]
+                if pid not in fila and pid not in completados:
+                    fila.append(pid)
                 index += 1
+
+            if not fila:
+                tempo += 1
+                continue
+
             pid = fila.pop(0)
-            if pid not in completados:
-                inicio = tempo
-            else:
-                inicio = tempo
+
+            if pid not in primeiros:
+                primeiros[pid] = tempo
+
             exec_time = min(quantum, restantes[pid])
             tempo += exec_time
             restantes[pid] -= exec_time
-            for i in range(index, len(processos)):
-                if processos[i][1] <= tempo:
-                    fila.append(processos[i][0])
-                    index += 1
+
+            while index < len(processos) and processos[index][1] <= tempo:
+                novo_pid = processos[index][0]
+                if novo_pid not in fila and novo_pid not in completados:
+                    fila.append(novo_pid)
+                index += 1
+
             if restantes[pid] > 0:
                 fila.append(pid)
                 tempo += ttc
             else:
                 fim = tempo
-                espera = fim - chegada[pid] - sum([p[2] for p in self.processos if p[0] == pid])
-                completados[pid] = (pid, inicio, fim, espera)
-                resultados.append(completados[pid])
-        media_espera = sum(p[3] for p in resultados) / len(resultados)
+                espera = fim - chegada[pid] - sum(p[2] for p in self.processos if p[0] == pid)
+                resultados.append((pid, primeiros[pid], fim, espera))
+                completados[pid] = True
+
+        media_espera = sum(r[3] for r in resultados) / len(resultados)
         return resultados, media_espera
 
-class IntroDialog(tk.Toplevel):
-    def __init__(self, master):
-        super().__init__(master)
-        self.title("Introdução")
-        self.geometry("600x400")
-        self.configure(bg="#f0f0f0")
-        self.resizable(False, False)
-        self.content = tk.Frame(self, bg="#f0f0f0", padx=20, pady=20)
-        self.content.pack(expand=True, fill="both")
-        tk.Label(self.content, text="TRABALHO 1 DE SISTEMAS OPERACIONAIS", font=("Helvetica", 16, "bold"), bg="#f0f0f0").pack(pady=10)
-        tk.Label(self.content, text="Autores: Mateus Medeiros Schneider e Miguel Bohrz Vogel", font=("Helvetica", 12), bg="#f0f0f0").pack()
-        tk.Label(self.content, text="Orientador: Prof. Dr. Luis Claudio Gubert", font=("Helvetica", 12), bg="#f0f0f0").pack()
-        tk.Label(self.content, text="\nEste programa simula algoritmos de escalonamento de processos.", bg="#f0f0f0", justify="center").pack(pady=10)
-        tk.Button(self.content, text="Fechar e Iniciar", command=self.destroy).pack(pady=20)
-        self.grab_set()
-        self.wait_window(self)
 
 class App:
     def __init__(self, root):
@@ -152,6 +148,17 @@ class App:
         menubar.add_cascade(label="Tema", menu=tema_menu)
 
         self.root.config(menu=menubar)
+
+        acoes_menu = tk.Menu(menubar, tearoff=0)
+        acoes_menu.add_command(label="Resetar Simulação", command=self.resetar_simulacao)
+        menubar.add_cascade(label="Ações", menu=acoes_menu)
+
+    def resetar_simulacao(self):
+        self.scheduler.processos.clear()
+        self.limpar_adicionados()
+        self.limpar_resultados()
+        if hasattr(self, 'grafico_canvas'):
+            self.grafico_canvas.get_tk_widget().destroy()
 
     def setup_ui(self):
         input_frame = tk.LabelFrame(self.root, text="Inserir Processos")
@@ -232,8 +239,30 @@ class App:
             for pid, ini, fim, esp in res:
                 self.output.insert(tk.END, f"{pid}: Início={ini}, Fim={fim}, Espera={esp}\n")
             self.output.insert(tk.END, f"Tempo médio de espera: {media:.2f}\n\n")
+            self.exibir_grafico(res, politica)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro na simulação: {e}")
+
+    def exibir_grafico(self, resultados, politica):
+        fig, ax = plt.subplots(figsize=(6, 2.5))
+        for pid, inicio, fim, _ in resultados:
+            ax.barh(f"P{pid}", fim - inicio, left=inicio, edgecolor='black')
+        ax.set_xlabel("Tempo")
+        ax.set_ylabel("Processo")
+        ax.set_title(f"Gráfico de Execução - {politica}")
+        ax.grid(True)
+
+        # Define o intervalo de tempo com mais detalhes (de 0 até o tempo máximo do gráfico)
+        tempo_max = max(fim for _, _, fim, _ in resultados)
+        ax.set_xticks(range(0, tempo_max + 1))  # Marcação de 1 em 1 unidade
+
+
+        if hasattr(self, 'grafico_canvas'):
+            self.grafico_canvas.get_tk_widget().destroy()
+
+        self.grafico_canvas = FigureCanvasTkAgg(fig, master=self.result_frame)
+        self.grafico_canvas.draw()
+        self.grafico_canvas.get_tk_widget().pack(pady=10)
 
     def limpar_adicionados(self):
         self.adicionados_output.delete('1.0', tk.END)
@@ -282,6 +311,9 @@ class App:
                     if isinstance(sub, tk.Text):
                         sub.configure(bg="#3c3f41" if self.tema_escuro else "#ffffff", fg=fg, insertbackground=fg)
         messagebox.showinfo("Tema", "Tema escuro ativado!" if self.tema_escuro else "Tema claro ativado!")
+
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
