@@ -238,7 +238,7 @@ class App:
             self.output.insert(tk.END, f"\nPolítica: {politica}\n")
             for pid, ini, fim, esp in res:
                 self.output.insert(tk.END, f"{pid}: Início={ini}, Fim={fim}, Espera={esp}\n")
-            self.output.insert(tk.END, f"Tempo médio de espera: {media:.2f}\n\n")
+            self.output.insert(tk.END, f"Tempo médio de espera (segundos): {media:.2f}\n\n")
             self.exibir_grafico(res, politica)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro na simulação: {e}")
