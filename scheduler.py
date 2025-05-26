@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -49,7 +49,7 @@ class Escalonador:
                 tempo += 1
         return resultados, espera_total / len(self.processos)
 
-    def sjf_preemptivo(self, ttc):
+    def sjf_preemptivo(self, ttc, pedir_novo_processo_callback=None):
         processos = sorted(self.processos, key=lambda x: x[1])
         tempo = 0
         prontos = []
@@ -59,7 +59,7 @@ class Escalonador:
         inicio_exec = {}
         completo = set()
         index = 0
-        processo_atual = None
+
         while len(completo) < len(processos):
             while index < len(processos) and processos[index][1] <= tempo:
                 prontos.append(processos[index][0])
@@ -77,6 +77,17 @@ class Escalonador:
                     completo.add(processo_atual)
                     tempo += ttc
             tempo += 1
+
+            if tempo % 5 == 0 and pedir_novo_processo_callback:
+                novo = pedir_novo_processo_callback()
+                if novo:
+                    pid, chegada_n, execucao_n = novo
+                    self.processos.append((pid, chegada_n, execucao_n))
+                    processos.append((pid, chegada_n, execucao_n))
+                    processos.sort(key=lambda x: x[1])
+                    restantes[pid] = execucao_n
+                    chegada[pid] = chegada_n
+
         media_espera = sum(p[3] for p in resultados) / len(resultados)
         return resultados, media_espera
 
@@ -129,7 +140,6 @@ class Escalonador:
         media_espera = sum(r[3] for r in resultados) / len(resultados)
         return resultados, media_espera
 
-
 class App:
     def __init__(self, root):
         self.tema_escuro = False
@@ -147,11 +157,11 @@ class App:
         tema_menu.add_command(label="Alternar Tema Escuro", command=self.alternar_tema)
         menubar.add_cascade(label="Tema", menu=tema_menu)
 
-        self.root.config(menu=menubar)
-
         acoes_menu = tk.Menu(menubar, tearoff=0)
         acoes_menu.add_command(label="Resetar Simulação", command=self.resetar_simulacao)
         menubar.add_cascade(label="Ações", menu=acoes_menu)
+
+        self.root.config(menu=menubar)
 
     def resetar_simulacao(self):
         self.scheduler.processos.clear()
@@ -207,6 +217,21 @@ class App:
         self.output.pack()
         tk.Button(self.result_frame, text="Limpar Resultados", command=self.limpar_resultados).pack(pady=2)
 
+        self.grafico_frame = tk.Frame(self.root)
+        self.grafico_frame.grid(row=0, column=7, rowspan=3, padx=10, pady=5, sticky="nsew")
+
+    def solicitar_novo_processo(self):
+        novo_pid = simpledialog.askstring("Novo Processo", "PID do novo processo:")
+        if not novo_pid:
+            return None
+        try:
+            chegada = int(simpledialog.askstring("Novo Processo", "Tempo de chegada:"))
+            execucao = int(simpledialog.askstring("Novo Processo", "Tempo de execução:"))
+            return (novo_pid, chegada, execucao)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro nos dados: {e}")
+            return None
+
     def adicionar_processo(self):
         try:
             pid = self.pid.get()
@@ -230,7 +255,7 @@ class App:
             elif politica == "SJF Não Preemptivo":
                 res, media = self.scheduler.sjf_np(ttc)
             elif politica == "SJF Preemptivo":
-                res, media = self.scheduler.sjf_preemptivo(ttc)
+                res, media = self.scheduler.sjf_preemptivo(ttc, self.solicitar_novo_processo)
             elif politica == "Round Robin":
                 res, media = self.scheduler.round_robin(quantum, ttc)
             else:
@@ -251,16 +276,11 @@ class App:
         ax.set_ylabel("Processo")
         ax.set_title(f"Gráfico de Execução - {politica}")
         ax.grid(True)
-
-        # Define o intervalo de tempo com mais detalhes (de 0 até o tempo máximo do gráfico)
         tempo_max = max(fim for _, _, fim, _ in resultados)
-        ax.set_xticks(range(0, tempo_max + 1))  # Marcação de 1 em 1 unidade
-
-
+        ax.set_xticks(range(0, tempo_max + 1))
         if hasattr(self, 'grafico_canvas'):
             self.grafico_canvas.get_tk_widget().destroy()
-
-        self.grafico_canvas = FigureCanvasTkAgg(fig, master=self.result_frame)
+        self.grafico_canvas = FigureCanvasTkAgg(fig, master=self.grafico_frame)
         self.grafico_canvas.draw()
         self.grafico_canvas.get_tk_widget().pack(pady=10)
 
@@ -274,16 +294,16 @@ class App:
         texto = (
             "Simulador de Escalonamento de Processos\n\n"
             "Este programa permite simular quatro algoritmos de escalonamento:\n"
-            "🔹 FCFS: Ordem de chegada.\n"
-            "🔹 SJF Não Preemptivo: Executa o menor job entre os disponíveis.\n"
-            "🔹 SJF Preemptivo: Interrompe para executar o menor restante.\n"
-            "🔹 Round Robin: Executa por quantum e reentra na fila se necessário.\n\n"
-            "Termos utilizados:\n"
-            "🔹 PID: Identificador do processo.\n"
-            "🔹 Chegada: Tempo em que o processo está pronto.\n"
-            "🔹 Tempo de Execução: Tempo necessário para conclusão.\n"
-            "🔹 Quantum: Duração máxima do uso do processador.\n"
-            "🔹 TTC: Tempo de Troca de Contexto entre processos.\n"
+            "🔹 FCFS\n"
+            "🔹 SJF Não Preemptivo\n"
+            "🔹 SJF Preemptivo (permite entrada dinâmica de novos processos a cada 5 unidades de tempo)\n"
+            "🔹 Round Robin\n\n"
+            "Campos:\n"
+            "🔹 PID\n"
+            "🔹 Chegada\n"
+            "🔹 Tempo de Execução\n"
+            "🔹 Quantum\n"
+            "🔹 TTC\n"
         )
         messagebox.showinfo("Ajuda - Sobre o Programa", texto)
 
@@ -311,9 +331,6 @@ class App:
                     if isinstance(sub, tk.Text):
                         sub.configure(bg="#3c3f41" if self.tema_escuro else "#ffffff", fg=fg, insertbackground=fg)
         messagebox.showinfo("Tema", "Tema escuro ativado!" if self.tema_escuro else "Tema claro ativado!")
-
-
-
 
 if __name__ == "__main__":
     root = tk.Tk()
