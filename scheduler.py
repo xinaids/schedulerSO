@@ -76,7 +76,9 @@ class Escalonador:
                     prontos.remove(processo_atual)
                     completo.add(processo_atual)
                     tempo += ttc
-            tempo += 1
+                tempo += 1
+            else:
+                tempo += 1
 
             if tempo % 5 == 0 and pedir_novo_processo_callback:
                 novo = pedir_novo_processo_callback()
@@ -294,16 +296,17 @@ class App:
         texto = (
             "Simulador de Escalonamento de Processos\n\n"
             "Este programa permite simular quatro algoritmos de escalonamento:\n"
-            "🔹 FCFS\n"
-            "🔹 SJF Não Preemptivo\n"
-            "🔹 SJF Preemptivo (permite entrada dinâmica de novos processos a cada 5 unidades de tempo)\n"
-            "🔹 Round Robin\n\n"
+            "-> FCFS\n"
+            "-> SJF Não Preemptivo\n"
+            "-> SJF Preemptivo (permite entrada dinâmica de novos processos a cada 5 unidades de tempo)\n"
+            "-> Round Robin\n\n"
             "Campos:\n"
-            "🔹 PID\n"
-            "🔹 Chegada\n"
-            "🔹 Tempo de Execução\n"
-            "🔹 Quantum\n"
-            "🔹 TTC\n"
+            "-> PID\n"
+            "-> Chegada\n"
+            "-> Tempo de Execução\n"
+            "-> Quantum\n"
+            "-> TTC\n\n"
+            "Programa feito por Mateus Schneider e Miguel Vogel\n"
         )
         messagebox.showinfo("Ajuda - Sobre o Programa", texto)
 
