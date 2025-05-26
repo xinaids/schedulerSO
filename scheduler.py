@@ -59,6 +59,7 @@ class Escalonador:
         inicio_exec = {}
         completo = set()
         index = 0
+        perguntou_novo_processo = False
 
         while len(completo) < len(processos):
             while index < len(processos) and processos[index][1] <= tempo:
@@ -80,15 +81,18 @@ class Escalonador:
             else:
                 tempo += 1
 
-            if tempo % 5 == 0 and pedir_novo_processo_callback:
-                novo = pedir_novo_processo_callback()
-                if novo:
-                    pid, chegada_n, execucao_n = novo
-                    self.processos.append((pid, chegada_n, execucao_n))
-                    processos.append((pid, chegada_n, execucao_n))
-                    processos.sort(key=lambda x: x[1])
-                    restantes[pid] = execucao_n
-                    chegada[pid] = chegada_n
+            if not perguntou_novo_processo and tempo % 5 == 0 and pedir_novo_processo_callback:
+                perguntou_novo_processo = True
+                if messagebox.askyesno("Novo Processo", "Deseja adicionar um novo processo?"):
+                    novo = pedir_novo_processo_callback()
+                    if novo:
+                        pid, chegada_n, execucao_n = novo
+                        if not any(p[0] == pid for p in self.processos):
+                            self.processos.append((pid, chegada_n, execucao_n))
+                            processos.append((pid, chegada_n, execucao_n))
+                            processos.sort(key=lambda x: x[1])
+                            restantes[pid] = execucao_n
+                            chegada[pid] = chegada_n
 
         media_espera = sum(p[3] for p in resultados) / len(resultados)
         return resultados, media_espera
@@ -141,6 +145,7 @@ class Escalonador:
 
         media_espera = sum(r[3] for r in resultados) / len(resultados)
         return resultados, media_espera
+
 
 class App:
     def __init__(self, root):
